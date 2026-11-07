@@ -38,7 +38,7 @@ function openProduct(index) {
   modalTitle.textContent = product.name;
   modalCategory.textContent = product.tag;
   modalDescription.textContent = product.desc;
-  modalWhatsapp.href = `https://api.whatsapp.com/send?text=${encodeURIComponent(`Hola Jumaré, quiero consultar disponibilidad del diseño ${product.name}`)}`;
+  modalWhatsapp.href = `https://wa.me/573227308966?text=${encodeURIComponent(`Hola Jumaré, quiero consultar disponibilidad del diseño ${product.name}`)}`;
   modal.classList.add('open');
   document.body.classList.add('menu-open');
   document.querySelector('#closeModal').focus();
