@@ -1,0 +1,77 @@
+name: Deploy Jumare to AWS
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: jumare-production-deploy
+  cancel-in-progress: true
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  S3_BUCKET: ${{ vars.S3_BUCKET }}
+  CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
+
+jobs:
+  deploy:
+    name: Deploy static site
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Configure temporary AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-session-name: GitHubActions-Jumare-${{ github.run_id }}
+          aws-region: ${{ vars.AWS_REGION }}
+          mask-aws-account-id: true
+          unset-current-credentials: true
+          translate-env-variables: false
+
+      - name: Prepare deployment package
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f index.html
+          test -d assets
+          mkdir -p deploy
+          cp index.html deploy/index.html
+          cp -R assets deploy/assets
+
+      - name: Upload site to S3
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws s3 sync deploy/ "s3://${S3_BUCKET}/" \
+            --delete \
+            --only-show-errors \
+            --no-progress \
+            --cache-control "public,max-age=3600"
+
+          aws s3 cp deploy/index.html "s3://${S3_BUCKET}/index.html" \
+            --only-show-errors \
+            --no-progress \
+            --cache-control "no-cache,no-store,must-revalidate" \
+            --content-type "text/html; charset=utf-8"
+
+      - name: Clear CloudFront cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws cloudfront create-invalidation \
+            --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" \
+            --paths "/*" \
+            --no-cli-pager
